@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getChatHistoryFromId } from '@/services/analyze.service'
+import {
+  getAnalyzeByChatId,
+  getChatHistoryFromId,
+} from '@/services/analyze.service'
 import { getUserFromRequest } from '@/utils/auth'
 
 export async function GET(
@@ -11,7 +14,7 @@ export async function GET(
   const user = await getUserFromRequest(request)
   const userId = user.id
   try {
-    const data = await getChatHistoryFromId(chatId)
+    const data = await getAnalyzeByChatId(chatId)
     console.log(data)
     return NextResponse.json(data)
   } catch (error: any) {

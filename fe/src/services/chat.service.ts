@@ -61,7 +61,7 @@ export class ChatService {
     const { data, error } = await supabase
       .from('chat')
       .insert({
-        chatId,
+        id: chatId,
         chat_title: userMessage,
         user_id: userId,
         chat_history: initialChatHistory,
@@ -131,11 +131,9 @@ export class ChatService {
       .eq('id', chatId)
       .eq('user_id', userId)
       .single()
-
-    if (error || !data) {
-      throw new Error('채팅 내역을 찾을 수 없습니다.')
+    if (!data) {
+      return []
     }
-
     return data.chat_history as ChatMessage[]
   }
 
