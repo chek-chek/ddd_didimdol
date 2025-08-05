@@ -61,7 +61,7 @@ export class ChatService {
     const { data, error } = await supabase
       .from('chat')
       .insert({
-        chatId,
+        id: chatId,
         chat_title: userMessage,
         user_id: userId,
         chat_history: initialChatHistory,
@@ -131,11 +131,9 @@ export class ChatService {
       .eq('id', chatId)
       .eq('user_id', userId)
       .single()
-
-    if (error || !data) {
-      throw new Error('채팅 내역을 찾을 수 없습니다.')
+    if (!data) {
+      return []
     }
-
     return data.chat_history as ChatMessage[]
   }
 
@@ -192,7 +190,7 @@ export class ChatService {
    */
   async getChatForAnalysis(chatId: string, userId: string) {
     const supabase = await this.getSupabaseClient()
-
+    let retrun_data
     const { data, error } = await supabase
       .from('chat')
       .select('*')
@@ -200,11 +198,20 @@ export class ChatService {
       .eq('user_id', userId)
       .single()
 
+    retrun_data = data
     if (error || !data) {
       throw new Error('채팅 데이터를 찾을 수 없습니다.')
     }
-
-    return data
+    if (data.isAnalyzed) {
+      const { data: analysisData, error } = await supabase
+        .from('chat_analysis')
+        .select('content')
+        .eq('chat_id', chatId)
+        .eq('user_id', userId)
+        .single()
+      retrun_data.analyzed_content = analysisData.content
+    }
+    return retrun_data
   }
 }
 

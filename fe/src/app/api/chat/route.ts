@@ -65,11 +65,12 @@ export async function POST(request: NextRequest) {
 
     const existingChat = await chatService.getChatHistory(chatId, userId)
 
-    if (!existingChat) {
+    if (existingChat.length == 0) {
       // 처음하는 발화이면 - 히스토리 없이 호출
-
-      answer = await callPythonRAG(message)
-
+      console.log('처음')
+      // answer = await callPythonRAG(message)
+      answer = '답1'
+      console.log(chatId, userId, message, answer)
       // 새로운 채팅 생성
       const result = await chatService.createChat({
         chatId,
@@ -88,8 +89,8 @@ export async function POST(request: NextRequest) {
       }))
 
       // Python RAG 호출
-      answer = await callPythonRAG(message, chatHistory)
-
+      // answer = await callPythonRAG(message, chatHistory)
+      answer = '답'
       // 기존 채팅 업데이트
       await chatService.updateChat({
         chatId,

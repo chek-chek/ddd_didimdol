@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, use } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,37 +16,35 @@ export default function AnalysisDetailPage({
   params,
 }: AnalysisDetailPageProps) {
   const { id: chatId } = use(params)
-  const { chatHistory, handleMutateChatHistory, isGetChatHistoryPending } =
-    useChatHistory()
-  useEffect(() => {
-    handleMutateChatHistory(chatId)
-  }, [])
   const [analysis, setAnalysis] = useState<string | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+
+  const {
+    chatData,
+    handleMutateChatHistory,
+    isGetChatHistoryPending,
+    setChatData,
+  } = useChatHistory()
+
+  useEffect(() => {
+    if (chatId) handleMutateChatHistory(chatId)
+  }, [chatId, handleMutateChatHistory])
 
   const userId =
     typeof window !== 'undefined' ? localStorage.getItem('user_id') ?? '' : ''
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const analysisRes = await fetch(`/api/analyze/${chatId}`)
-        const analysisData = await analysisRes.json()
-        if (analysisData?.content) {
-          setAnalysis(analysisData.content)
-        }
-      } catch (error: any) {
-        toast.error('오류 발생' + error.message)
-      }
-    }
-
-    if (userId) fetchData()
-  }, [chatId, userId])
-
   const handleAnalyze = async () => {
     try {
-      const conversation = chatHistory
+      if (!chatData?.chat_history?.length) {
+        toast.error('분석할 채팅이 없습니다.')
+        return
+      }
+
+      setIsAnalyzing(true)
+
+      const conversation = chatData.chat_history
         .map(
-          (msg) =>
+          (msg: any) =>
             `${msg.role === 'user' ? '👤 사용자' : '🤖 AI'}: ${msg.content}`
         )
         .join('\n')
@@ -60,57 +59,282 @@ export default function AnalysisDetailPage({
 
       const data = await res.json()
 
-      if (res.ok) {
-        setAnalysis(data.analyzed_data)
-        toast.success('분석 완료')
-      } else {
-        throw new Error(data.error || '분석 실패')
-      }
+      if (!res.ok) throw new Error(data?.error || '분석 실패')
+
+      setAnalysis(data.analyzed_data)
+      setChatData((prev: any) => ({
+        ...(prev || {}),
+        isAnalyzed: true,
+        analyzed_content: data.analyzed_data,
+      }))
+
+      toast.success('분석 완료')
     } catch (error: any) {
-      toast.error('오류 발생' + error.message)
+      toast.error('오류 발생: ' + (error?.message ?? '알 수 없는 오류'))
+    } finally {
+      setIsAnalyzing(false)
     }
   }
 
-  return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">채팅 분석</h1>
+  const messages = chatData?.chat_history ?? []
+  const analyzedText = chatData?.analyzed_content ?? analysis ?? null
 
-      <Card className="mb-6">
+  return (
+    <div className="p-6 max-w-3xl mx-auto relative">
+      {/* 상단 진행바 */}
+      <AnimatePresence>
+        {isAnalyzing && (
+          <motion.div
+            key="progress"
+            className="absolute left-0 top-0 h-1 bg-primary/80 rounded-r"
+            initial={{ width: 0 }}
+            animate={{ width: '100%' }}
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: 1.2,
+              ease: 'easeInOut',
+              repeat: Infinity,
+              repeatType: 'reverse',
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.h1
+        className="text-2xl font-bold mb-6"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        채팅 분석
+      </motion.h1>
+
+      <Card className="mb-6 overflow-hidden">
         <CardContent className="pt-6 space-y-4">
-          {chatHistory.length > 0 ? (
-            chatHistory.map((msg, i) => (
-              <div key={i}>
-                <div className="text-sm text-muted-foreground mb-1">
-                  {msg.role === 'user' ? '👤 사용자' : '🤖 AI'}
-                </div>
-                <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
-                <Separator className="my-3" />
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-gray-500">채팅 내역이 없습니다.</p>
-          )}
+          {/* 채팅 로딩 상태 */}
+          <AnimatePresence mode="wait">
+            {isGetChatHistoryPending ? (
+              <motion.div
+                key="skeleton-list"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <MessageSkeletonList count={5} />
+              </motion.div>
+            ) : messages.length > 0 ? (
+              <motion.div
+                key="message-list"
+                initial="hidden"
+                animate="show"
+                variants={listVariants}
+              >
+                {messages.map((msg: any, i: number) => (
+                  <motion.div key={i} variants={itemVariants}>
+                    <div className="text-sm text-muted-foreground mb-1">
+                      {msg.role === 'user' ? '👤 사용자' : '🤖 AI'}
+                    </div>
+                    <div className="text-sm whitespace-pre-wrap">
+                      {msg.content}
+                    </div>
+                    <Separator className="my-3" />
+                  </motion.div>
+                ))}
+              </motion.div>
+            ) : (
+              <motion.p
+                key="empty"
+                className="text-sm text-gray-500"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                채팅 내역이 없습니다.
+              </motion.p>
+            )}
+          </AnimatePresence>
         </CardContent>
       </Card>
 
-      <Button onClick={handleAnalyze} disabled={!!analysis} className="mb-6">
-        {isGetChatHistoryPending
-          ? '분석 중...'
-          : analysis
-          ? '분석 완료됨'
-          : '이 대화 분석하기'}
+      <Button onClick={handleAnalyze} disabled={isAnalyzing} className="mb-6">
+        <AnimatePresence mode="wait" initial={false}>
+          {isAnalyzing ? (
+            <motion.span
+              key="loading"
+              className="inline-flex items-center gap-2"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+            >
+              <Spinner />
+              분석 중...
+            </motion.span>
+          ) : analyzedText ? (
+            <motion.span
+              key="redo"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+            >
+              다시 분석하기
+            </motion.span>
+          ) : (
+            <motion.span
+              key="do"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+            >
+              이 대화 분석하기
+            </motion.span>
+          )}
+        </AnimatePresence>
       </Button>
 
-      {analysis && (
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <h2 className="text-xl font-semibold">🔍 분석 결과</h2>
-            <p className="text-sm whitespace-pre-wrap leading-relaxed">
-              {analysis}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* 분석 결과 섹션 */}
+      <AnimatePresence mode="wait">
+        {(!!analyzedText || chatData?.isAnalyzed || isAnalyzing) && (
+          <motion.div
+            key="analysis-card"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <h2 className="text-xl font-semibold">🔍 분석 결과</h2>
+
+                {isAnalyzing && !analyzedText ? (
+                  <AnalysisSkeleton />
+                ) : (
+                  <motion.p
+                    className="text-sm whitespace-pre-wrap leading-relaxed"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    {analyzedText ?? '분석 결과가 아직 준비되지 않았습니다.'}
+                  </motion.p>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  )
+}
+
+/* -------------------- Framer Motion Variants -------------------- */
+const listVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05, delayChildren: 0.05 },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 6 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.2 } },
+}
+
+/* -------------------- UI Pieces: Skeleton / Spinner -------------------- */
+function Spinner() {
+  return (
+    <motion.svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      className="shrink-0"
+      initial={{ rotate: 0 }}
+      animate={{ rotate: 360 }}
+      transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="3"
+        fill="none"
+        opacity=".25"
+      />
+      <motion.circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+        strokeDasharray="60"
+        strokeDashoffset="40"
+        animate={{ strokeDashoffset: [40, 10, 40] }}
+        transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+      />
+    </motion.svg>
+  )
+}
+
+function MessageSkeletonList({ count = 4 }: { count?: number }) {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <MessageSkeleton key={i} />
+      ))}
+    </div>
+  )
+}
+
+function MessageSkeleton() {
+  return (
+    <div>
+      <div className="mb-1 h-3 w-16 rounded bg-muted/60 relative overflow-hidden">
+        <Shimmer />
+      </div>
+      <div className="space-y-2">
+        <div className="h-4 w-3/4 rounded bg-muted/50 relative overflow-hidden">
+          <Shimmer />
+        </div>
+        <div className="h-4 w-2/3 rounded bg-muted/40 relative overflow-hidden">
+          <Shimmer />
+        </div>
+      </div>
+      <Separator className="my-3" />
+    </div>
+  )
+}
+
+function AnalysisSkeleton() {
+  return (
+    <div className="space-y-3">
+      <div className="h-4 w-32 rounded bg-muted/60 relative overflow-hidden">
+        <Shimmer />
+      </div>
+      <div className="h-4 w-full rounded bg-muted/50 relative overflow-hidden">
+        <Shimmer />
+      </div>
+      <div className="h-4 w-11/12 rounded bg-muted/40 relative overflow-hidden">
+        <Shimmer />
+      </div>
+      <div className="h-4 w-10/12 rounded bg-muted/40 relative overflow-hidden">
+        <Shimmer />
+      </div>
+      <div className="h-4 w-9/12 rounded bg-muted/30 relative overflow-hidden">
+        <Shimmer />
+      </div>
+    </div>
+  )
+}
+
+function Shimmer() {
+  return (
+    <motion.div
+      className="absolute inset-0 -translate-x-full"
+      animate={{ x: ['-100%', '100%'] }}
+      transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+    >
+      <div className="h-full w-1/2 bg-gradient-to-r from-transparent via-white/40 to-transparent dark:via-white/10" />
+    </motion.div>
   )
 }

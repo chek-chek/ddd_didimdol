@@ -1,3 +1,7 @@
 export default function ChatPage() {
-  return <div className="flex-1 bg-red-100 w-screen h-screen">1</div>
+  return (
+    <div className="flex w-full h-full items-center justify-center">
+      <span className="text-2xl font-semibold text-gray-80">개발중</span>
+    </div>
+  )
 }
