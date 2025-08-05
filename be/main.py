@@ -29,6 +29,12 @@ class ChatResponse(BaseModel):
     answer: str
 
 
+class AnalyzeResponse(BaseModel):
+    type: str
+    solution: str
+    reason: str
+
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
@@ -41,8 +47,12 @@ async def chat(request: ChatRequest):
 @app.post("/api/analyze")
 async def analyze(request: ChatRequest):
     try:
-        answer = "플레이스 홀더 응답입니다"
-        return ChatResponse(answer=answer)
+        answer = {
+            "type": "placeholder type",
+            "solution": "placeholder solution",
+            "reason": "placeholder reason",
+        }
+        return AnalyzeResponse(**answer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
