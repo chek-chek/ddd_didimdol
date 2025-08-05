@@ -1,6 +1,7 @@
 // app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { chatService } from '@/services/chat.service'
+import { getUserFromRequest } from '@/utils/auth'
 
 // Python 백엔드 URL (환경변수로 관리 권장)
 const PYTHON_BACKEND_URL =
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
     const { chatId, message } = await request.json()
 
     // 사용자 ID 가져오기
-    const userId = request.cookies.get('user_id')?.value
+    const user = await getUserFromRequest(request)
+    const userId = user.id
 
     if (!message) {
       return NextResponse.json(
@@ -61,29 +63,24 @@ export async function POST(request: NextRequest) {
     let finalChatId = chatId
     let chatHistory: ChatHistory[] = []
 
-    if (!chatId) {
+    const existingChat = await chatService.getChatHistory(chatId, userId)
+
+    if (!existingChat) {
       // 처음하는 발화이면 - 히스토리 없이 호출
+
       answer = await callPythonRAG(message)
 
       // 새로운 채팅 생성
       const result = await chatService.createChat({
+        chatId,
         userId,
         userMessage: message,
         assistantMessage: answer,
       })
       finalChatId = result.chatId
     } else {
-      // 기존 채팅 내역 조회
-      const existingChat = await chatService.getChatHistory(chatId, userId)
+      // 채팅이 있었으면
 
-      if (!existingChat) {
-        return NextResponse.json(
-          { message: '채팅을 찾을 수 없습니다.' },
-          { status: 404 }
-        )
-      }
-
-      console.log(existingChat)
       // 채팅 히스토리 포맷팅
       chatHistory = existingChat.map((msg: any) => ({
         role: msg.role,

@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set('sb-access-token', '', cookieOptions)
     response.cookies.set('sb-refresh-token', '', cookieOptions)
-    response.cookies.set('user_id', '', cookieOptions)
 
     return response
   } catch (error) {

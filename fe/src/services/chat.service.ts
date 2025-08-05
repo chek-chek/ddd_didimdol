@@ -7,6 +7,7 @@ export interface ChatMessage {
 }
 
 export interface CreateChatParams {
+  chatId: string
   userId: string
   userMessage: string
   assistantMessage: string
@@ -37,6 +38,7 @@ export class ChatService {
    * 새로운 채팅을 생성하고 DB에 저장
    */
   async createChat({
+    chatId,
     userId,
     userMessage,
     assistantMessage,
@@ -59,6 +61,7 @@ export class ChatService {
     const { data, error } = await supabase
       .from('chat')
       .insert({
+        chatId,
         chat_title: userMessage,
         user_id: userId,
         chat_history: initialChatHistory,

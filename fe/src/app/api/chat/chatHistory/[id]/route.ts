@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { chatService } from '@/services/chat.service'
+import { getUserFromRequest } from '@/utils/auth'
 
 export async function GET(
   request: NextRequest,
@@ -7,8 +8,8 @@ export async function GET(
 ) {
   const { params } = await contextPromise
   const chatId = params.id
-  const userId = request.cookies.get('user_id')?.value
-
+  const user = await getUserFromRequest(request)
+  const userId = user.id
   console.log(chatId, userId)
 
   if (!userId) {
