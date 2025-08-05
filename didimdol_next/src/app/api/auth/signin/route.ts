@@ -41,14 +41,14 @@ export async function POST(request: NextRequest) {
         path: '/',
       })
 
-      // 사용자 ID도 별도 쿠키에 저장 (기존 코드와의 호환성)
-      response.cookies.set('user_id', result.user.id, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60, // 7일
-        path: '/',
-      })
+      // // 사용자 ID도 별도 쿠키에 저장 (기존 코드와의 호환성)
+      // response.cookies.set('user_id', result.user.id, {
+      //   httpOnly: true,
+      //   secure: process.env.NODE_ENV === 'production',
+      //   sameSite: 'lax',
+      //   maxAge: 7 * 24 * 60 * 60, // 7일
+      //   path: '/',
+      // })
     }
 
     return response
