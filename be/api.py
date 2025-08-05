@@ -38,7 +38,9 @@ def load_prompt(prompt_name: str) -> str:
             .execute()
         )
         if not result.data:
-            raise ValueError(f"'{prompt_name}'에 해당하는 프롬프트가 존재하지 않습니다.")
+            raise ValueError(
+                f"'{prompt_name}'에 해당하는 프롬프트가 존재하지 않습니다."
+            )
 
         prompt = result.data[0]["content"]
         print(f"✅ 프롬프트 '{prompt_name}' 로드 완료")
@@ -56,51 +58,9 @@ def insert_prompt(prompt_name: str, prompt_text: str) -> None:
     ).execute()
 
 
-# === Chat API 호출 함수 (대화 이력 지원) ===
-def ask_rag_chatbot(query: str, chat_history: list[dict]) -> str:
-    print(query, chat_history)
-    docs = retrieve_relevant_chunks(query, top_k=3)
-    rag_text = ""
-    for doc in docs:
-        rag_text += f"""{doc.get("author", "")}의 이론 {doc.get("title", "")}
-{doc.get("doc", "")}
-----------------------
-"""
-    FEW_SHOTS = load_prompt("few_shots")
-    INSTRUCTION = load_prompt("instruction")
+def chat(message, chat_history):
+    pass
 
-    system_prompt_format = """당신은 아동 상담 전문가입니다.
-참고를 위해 주어진 정보는 아동심리 전문 서적에서 사용자의 발화와 관련된 내용을 찾은 것입니다.
-해당 내용을 참고해서 쉽고 최대한 구체적으로 답변을 주세요.
-예시의 스타일을 참고해서 비슷한 스타일로 답변해 주세요.
 
-### 참고할 이론
-{rag_text}
-
-### 답변 작성 지침
-{instruction}
-
-### 예시
-{few_shots}
-    """
-
-    system_prompt = system_prompt_format.format(
-        rag_text=rag_text, instruction=INSTRUCTION, few_shots=FEW_SHOTS
-    )
-
-    print("-" * 60)
-    print(f"시스템 프롬프트: {system_prompt}")
-    print("-" * 60)  # 디버깅용 출력
-
-    messages = [{"role": "system", "content": system_prompt}] + chat_history
-    messages.append(
-        {
-            "role": "user",
-            "content": query,
-        }
-    )
-
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini", messages=messages, temperature=0.2
-    )
-    return response.choices[0].message.content.strip()
+def analyze(chat_history):
+    pass

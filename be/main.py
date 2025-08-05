@@ -6,7 +6,7 @@ from typing import List, Dict
 import uvicorn
 
 # 기존 코드 import
-from api import ask_rag_chatbot, load_prompt, insert_prompt
+from api import analyze, chat, load_prompt, insert_prompt
 
 app = FastAPI()
 
@@ -29,6 +29,10 @@ class ChatResponse(BaseModel):
     answer: str
 
 
+class AnalyzeRequest(BaseModel):
+    chat_history: List[Dict[str, str]] = []
+
+
 class AnalyzeResponse(BaseModel):
     type: str
     solution: str
@@ -38,14 +42,14 @@ class AnalyzeResponse(BaseModel):
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
-        answer = ask_rag_chatbot(request.message, request.chat_history)
+        answer = chat(request.message, request.chat_history)
         return ChatResponse(answer=answer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/analyze")
-async def analyze(request: ChatRequest):
+async def analyze(request: AnalyzeRequest):
     try:
         answer = {
             "type": "placeholder type",
