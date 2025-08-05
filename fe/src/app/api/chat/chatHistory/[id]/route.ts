@@ -10,11 +10,6 @@ export async function GET(
   const chatId = params.id
   const user = await getUserFromRequest(request)
   const userId = user.id
-  console.log(chatId, userId)
-
-  if (!userId) {
-    return NextResponse.json({ error: 'userId 누락됨' }, { status: 400 })
-  }
 
   try {
     const chat = await chatService.getChatForAnalysis(chatId, userId)
