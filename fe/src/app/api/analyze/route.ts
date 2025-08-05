@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { chatService } from '@/services/chat.service'
 import { createAnalyze } from '@/services/analyze.service'
 import { getUserFromRequest } from '@/utils/auth'
+import axiosInstance from '@/apis/axiosInstance'
+import axiosBEInstance from '@/apis/axiosBEInstance'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +12,8 @@ export async function POST(request: NextRequest) {
     // 인증된 사용자 정보 가져오기
     const user = await getUserFromRequest(request)
     const userId = user.id
+    console.log('userId', userId)
+    console.log('chatId', chatId)
 
     if (!chatId || !userId) {
       return NextResponse.json(
@@ -20,7 +24,6 @@ export async function POST(request: NextRequest) {
 
     const chatData = await chatService.getChatForAnalysis(chatId, userId)
     const chatHistory = chatData.chat_history
-
     if (!chatHistory) {
       return NextResponse.json(
         { message: '채팅 히스토리를 찾을 수 없습니다.' },
@@ -29,18 +32,22 @@ export async function POST(request: NextRequest) {
     }
 
     // 여기 이제 agent 통해서 분석하기
-    const analyzed_data = '대충 분석된 데이터.'
+    const { data } = await axiosBEInstance.post('/api/analyze', {
+      chat_history: chatHistory,
+    })
+    const stringifiedData = JSON.stringify(data)
     await createAnalyze({
       chat_id: chatId,
       user_id: userId,
-      content: analyzed_data,
+      content: stringifiedData,
     })
-
-    await chatService.updateIsAnalyzed(chatId)
+    if (data) {
+      await chatService.updateIsAnalyzed(chatId)
+    }
 
     return NextResponse.json({
       message: '분석이 완료되었습니다.',
-      analyzed_data,
+      analyzed_data: stringifiedData,
     })
   } catch (error) {
     // 인증 에러인 경우 401 상태 코드 반환

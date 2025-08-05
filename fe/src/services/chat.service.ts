@@ -189,6 +189,7 @@ export class ChatService {
    * 채팅 분석용 데이터 가져오기
    */
   async getChatForAnalysis(chatId: string, userId: string) {
+    console.log(chatId, userId)
     const supabase = await this.getSupabaseClient()
     let retrun_data
     const { data, error } = await supabase
@@ -197,7 +198,6 @@ export class ChatService {
       .eq('id', chatId)
       .eq('user_id', userId)
       .single()
-
     retrun_data = data
     if (error || !data) {
       throw new Error('채팅 데이터를 찾을 수 없습니다.')
@@ -209,8 +209,10 @@ export class ChatService {
         .eq('chat_id', chatId)
         .eq('user_id', userId)
         .single()
+      console.log(analysisData)
       retrun_data.analyzed_content = analysisData.content
     }
+    console.log(retrun_data)
     return retrun_data
   }
 }

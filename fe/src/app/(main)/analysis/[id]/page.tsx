@@ -81,25 +81,6 @@ export default function AnalysisDetailPage({
 
   return (
     <div className="p-6 max-w-3xl mx-auto relative">
-      {/* 상단 진행바 */}
-      <AnimatePresence>
-        {isAnalyzing && (
-          <motion.div
-            key="progress"
-            className="absolute left-0 top-0 h-1 bg-primary/80 rounded-r"
-            initial={{ width: 0 }}
-            animate={{ width: '100%' }}
-            exit={{ opacity: 0 }}
-            transition={{
-              duration: 1.2,
-              ease: 'easeInOut',
-              repeat: Infinity,
-              repeatType: 'reverse',
-            }}
-          />
-        )}
-      </AnimatePresence>
-
       <motion.h1
         className="text-2xl font-bold mb-6"
         initial={{ opacity: 0, y: 6 }}
@@ -170,12 +151,11 @@ export default function AnalysisDetailPage({
             </motion.span>
           ) : analyzedText ? (
             <motion.span
-              key="redo"
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
             >
-              다시 분석하기
+              분석 완료
             </motion.span>
           ) : (
             <motion.span
