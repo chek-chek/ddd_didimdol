@@ -1,66 +1,94 @@
-import faiss
-import pickle
-import numpy as np
 from openai import OpenAI
 from dotenv import load_dotenv
-from db import supabase
+from db import get_supabase_client
+from constants import types_dict
 
 load_dotenv()
-client = OpenAI()
-
-# === FAISS & chunks 불러오기 ===
-index = faiss.read_index("faiss_index.idx")
-
-with open("faiss_chunks.pkl", "rb") as f:
-    chunks = pickle.load(f)
 
 
-# === 임베딩 함수 ===
-def get_embedding(text: str) -> list[float]:
-    response = client.embeddings.create(input=[text], model="text-embedding-3-small")
-    return response.data[0].embedding
-
-
-# === 검색 함수 ===
-def retrieve_relevant_chunks(query: str, top_k: int = 5) -> list[str]:
-    query_vector = np.array(get_embedding(query)).astype("float32").reshape(1, -1)
-    D, I = index.search(query_vector, top_k)
-    return [chunks[i] for i in I[0]]
-
-
-# === 프롬프트 가져오기 ===
-def load_prompt(prompt_name: str) -> str:
+def load_all_prompts(prompt_names: list[str]) -> dict[str, str]:
+    supabase = get_supabase_client()
     try:
         result = (
             supabase.table("prompts")
-            .select("content")
-            .eq("prompt_nm", prompt_name)
+            .select("prompt_nm", "content")
+            .in_("prompt_nm", prompt_names)
             .execute()
         )
         if not result.data:
-            raise ValueError(
-                f"'{prompt_name}'에 해당하는 프롬프트가 존재하지 않습니다."
-            )
+            raise ValueError("프롬프트들을 찾을 수 없습니다.")
 
-        prompt = result.data[0]["content"]
-        print(f"✅ 프롬프트 '{prompt_name}' 로드 완료")
-        return prompt
+        prompts = {item["prompt_nm"]: item["content"] for item in result.data}
+        for name in prompt_names:
+            if name in prompts:
+                print(f"✅ 프롬프트 '{name}' 로드 완료")
+            else:
+                print(f"⚠️  프롬프트 '{name}' 누락됨")
+        return prompts
 
     except Exception as e:
-        print(f"❌ 프롬프트 '{prompt_name}' 로드 중 오류 발생: {e}")
+        print(f"❌ 프롬프트 일괄 로드 중 오류 발생: {e}")
         raise
 
 
-def insert_prompt(prompt_name: str, prompt_text: str) -> None:
-    """프롬프트를 데이터베이스에 삽입합니다."""
-    supabase.table("khealth_prompt").update({"prompt": prompt_text}).eq(
-        "prompt_nm", prompt_name
-    ).execute()
+prompt_names = [
+    "chat_instruction",
+    "chat_few_shots",
+    "analyze_type",
+    "analyze_solution",
+    "analyze_instruction",
+    "analyze_few_shots",
+]
+
+PROMPTS = load_all_prompts(prompt_names)
+
+CHAT_INSTRUCTION = PROMPTS["chat_instruction"]
+CHAT_FEW_SHOTS = PROMPTS["chat_few_shots"]
+ANALYZE_TYPE = PROMPTS["analyze_type"]
+ANALYZE_SOLUTION = PROMPTS["analyze_solution"]
+ANALYZE_INSTRUCTION = PROMPTS["analyze_instruction"]
+ANALYZE_FEW_SHOTS = PROMPTS["analyze_few_shots"]
 
 
 def chat(message, chat_history):
-    pass
+    client = OpenAI()
+    system_prompt = CHAT_INSTRUCTION + "\n###발화 스타일 가이드" + CHAT_FEW_SHOTS
+    messages = [{"role": "system", "content": system_prompt}] + chat_history
+    messages.append(
+        {
+            "role": "user",
+            "content": message,
+        }
+    )
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini", messages=messages, temperature=0.2
+    )
+    return response.choices[0].message.content.strip()
 
 
 def analyze(chat_history):
-    pass
+    client = OpenAI()
+    # type classification
+    type_input = ANALYZE_TYPE + "\n###사용자의 대화:\n" + str(chat_history)
+    type_response = client.responses.create(model="gpt-4.1-mini", input=type_input)
+    type = type_response.output_text.strip()
+    # solution classification
+    solution_input = ANALYZE_SOLUTION + "\n###사용자의 대화:\n" + str(chat_history)
+    solution_response = client.responses.create(
+        model="gpt-4.1-mini", input=solution_input
+    )
+    solution = solution_response.output_text.strip()
+    # reason generation
+    reason_input = (
+        ANALYZE_INSTRUCTION
+        + f"\n사용자의 성격 타입: {type}\n"
+        + f"사용자에게 추천할 교재: {solution}\n"
+        + "###예시 답변\n"
+        + ANALYZE_FEW_SHOTS
+        + "\n###사용자의 대화\n"
+        + str(chat_history)
+    )
+    reason_response = client.responses.create(model="gpt-4.1-mini", input=reason_input)
+    reason = reason_response.output_text.strip()
+    response = {"type": type, "solution": solution, "reason": reason}
+    return response

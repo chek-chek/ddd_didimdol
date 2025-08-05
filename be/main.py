@@ -6,7 +6,7 @@ from typing import List, Dict
 import uvicorn
 
 # 기존 코드 import
-from api import analyze, chat, load_prompt, insert_prompt
+from api import analyze as llm_analyze, chat as llm_chat
 
 app = FastAPI()
 
@@ -39,10 +39,15 @@ class AnalyzeResponse(BaseModel):
     reason: str
 
 
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok"}
+
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
-        answer = chat(request.message, request.chat_history)
+        answer = llm_chat(request.message, request.chat_history)
         return ChatResponse(answer=answer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -51,30 +56,8 @@ async def chat(request: ChatRequest):
 @app.post("/api/analyze")
 async def analyze(request: AnalyzeRequest):
     try:
-        answer = {
-            "type": "placeholder type",
-            "solution": "placeholder solution",
-            "reason": "placeholder reason",
-        }
+        answer = llm_analyze(request.chat_history)
         return AnalyzeResponse(**answer)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/prompts/{prompt_name}")
-async def get_prompt(prompt_name: str):
-    try:
-        prompt = load_prompt(prompt_name)
-        return {"prompt": prompt}
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@app.post("/api/prompts/{prompt_name}")
-async def update_prompt(prompt_name: str, prompt_text: str):
-    try:
-        insert_prompt(prompt_name, prompt_text)
-        return {"message": "Prompt updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
