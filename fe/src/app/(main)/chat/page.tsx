@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -8,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import SpeechRecognition, {
   useSpeechRecognition,
 } from 'react-speech-recognition'
+import { toast } from 'sonner'
 
 type ChatMessage = {
   role: 'user' | 'assistant'
@@ -19,6 +21,8 @@ export default function ChatPage() {
   const [chatId, setChatId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const {
     transcript,
@@ -26,6 +30,37 @@ export default function ChatPage() {
     resetTranscript,
     browserSupportsSpeechRecognition,
   } = useSpeechRecognition()
+
+  // 초기 진입 시 chatId 설정
+  useEffect(() => {
+    const initializeChatId = async () => {
+      // URL에서 chatId 확인
+      const urlChatId = searchParams.get('chatId')
+
+      if (urlChatId) {
+        // URL에 chatId가 있으면 그대로 사용
+        setChatId(urlChatId)
+      } else {
+        // 없으면 새로운 UUID 받아오기
+        try {
+          const res = await fetch('/api/chat/initialize')
+          const data = await res.json()
+
+          if (data.chatId) {
+            setChatId(data.chatId)
+            // URL 업데이트 (페이지 리로드 없이)
+            const newUrl = `/chat?chatId=${data.chatId}`
+            window.history.replaceState({}, '', newUrl)
+          }
+        } catch (error) {
+          console.error('Failed to get new chatId:', error)
+          toast.error('채팅 초기화에 실패했습니다.')
+        }
+      }
+    }
+
+    initializeChatId()
+  }, [searchParams])
 
   // 음성 입력이 실시간으로 input에 반영되도록 함
   useEffect(() => {
@@ -35,7 +70,7 @@ export default function ChatPage() {
   }, [transcript, loading])
 
   const sendMessage = async () => {
-    if (!input.trim()) return
+    if (!input.trim() || !chatId) return
     const userMessage = input.trim()
 
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }])
@@ -63,48 +98,63 @@ export default function ChatPage() {
         ...prev,
         { role: 'assistant', content: data.utterance },
       ])
-      if (data.chatId) {
-        setChatId(data.chatId)
-      }
     } catch (err) {
+      console.error('Chat error:', err)
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: '⚠️ 오류가 발생했습니다.' },
       ])
+      toast.error('메시지 전송에 실패했습니다.')
     } finally {
       setLoading(false)
     }
   }
+
   useEffect(() => {
     if (!listening && transcript.trim() && !loading) {
       sendMessage()
     }
   }, [listening])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
     }
   }
+
   const toggleListening = () => {
     if (listening) {
       SpeechRecognition.stopListening()
     } else {
       SpeechRecognition.startListening({
         language: 'ko-KR',
-        continuous: false, // 💡 단일 문장만 인식 후 자동 종료
+        continuous: false,
       })
     }
   }
 
+  const handleNewChat = () => {
+    // 새 채팅 시작 - chatId 없이 새로고침
+    router.push('/chat')
+    window.location.reload()
+  }
+
   return (
     <div className="flex flex-col h-full p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">채팅</h1>
+        <Button variant="outline" onClick={handleNewChat} size="sm">
+          새 채팅
+        </Button>
+      </div>
+
       <Card className="flex-1 overflow-hidden">
         <CardContent className="p-4 h-full">
           {messages.length === 0 && !loading ? (
             <div className="flex h-full items-center justify-center">
               <p className="text-2xl text-gray-400 select-none">
-                채팅을 시작하세요 ✨
+                {chatId ? '채팅을 시작하세요 ✨' : '채팅을 초기화하는 중...'}
               </p>
             </div>
           ) : (
@@ -135,16 +185,25 @@ export default function ChatPage() {
 
       <div className="mt-4 flex items-center gap-2">
         <Input
-          placeholder="메시지를 입력하세요..."
+          placeholder={
+            chatId ? '메시지를 입력하세요...' : '채팅을 초기화하는 중...'
+          }
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={loading}
+          disabled={loading || !chatId}
         />
-        <Button onClick={sendMessage} disabled={loading || !input.trim()}>
+        <Button
+          onClick={sendMessage}
+          disabled={loading || !input.trim() || !chatId}
+        >
           전송
         </Button>
-        <Button variant="outline" onClick={toggleListening} disabled={loading}>
+        <Button
+          variant="outline"
+          onClick={toggleListening}
+          disabled={loading || !chatId}
+        >
           {listening ? '🛑 음성 멈추기' : '🎤 음성 입력'}
         </Button>
       </div>
